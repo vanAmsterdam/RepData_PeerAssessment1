@@ -1,25 +1,91 @@
 ---
 title: "Reproducible Research: Peer Assessment 1"
+author: "Wouter van Amsterdam"
 output: 
   html_document:
     keep_md: true
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
 
 ## Loading and preprocessing the data
 
+
+```{r load, results='hide', cache = T}
+library(data.table)
+activity <- fread("activity.csv")
+```
 
 
 ## What is mean total number of steps taken per day?
 
 
+```{r steps_day, message=F}
+library(data.table)
+library(dplyr)
+act_day <- activity[, list(steps = sum(steps, na.rm = T)), by = "date"]
+act_day[, mean(steps)]
+invisible(act_day[, hist(steps)]) # suppress histogram details
+act_day[, list(mean_steps = mean(steps), median_steps = median(steps))]
+```
+
 
 ## What is the average daily activity pattern?
+
+```{r steps_pattern}
+act_interval <- activity[, list(steps = mean(steps, na.rm = T)), by = "interval"]
+act_interval[, plot(steps~interval, type = 'l')]
+act_interval[steps == max(steps), list(interval, steps)]
+```
 
 
 
 ## Imputing missing values
 
 
+Look at missing values. Create copy of data.table. 
+Impute values based on average value for that interval
+```{r missings}
+colSums(is.na(activity))
+act_imp <- copy(activity)
+act_imp[is.na(steps), steps:=act_interval[interval == interval, steps]]
+colSums(is.na(act_imp))
+```
+
+
+Based on inputed data, create histogram again and median and mean values. The histogram changed clearly. 
+```{r imputed_summary}
+act_imp_day <- act_imp[, list(steps = sum(steps)), by = 'date']
+invisible(act_imp_day[, hist(steps)])
+act_imp_day[, list(mean_steps = mean(steps), median_steps = median(steps))]
+```
+
+Mean increased by 
+`r round(act_imp_day[, mean(steps)] - act_day[, mean(steps)], 0)` 
+steps, quite dramatic. The median only increased by 
+`r round(act_imp_day[, median(steps)] - act_day[, median(steps)], 0)` 
+steps, which is better.
+
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+```{r weekdays}
+act_imp[, weekend:=factor(weekdays(lubridate::ymd(date)) %in% c("Saturday", "Sunday"), levels = c(T,F), labels = c("weekend", "weekday"))]
+act_imp[, table(weekend)]
+
+act_imp_weekend <- act_imp[, list(steps = mean(steps)), by = 'weekend,interval']
+
+library(lattice)
+xyplot(steps ~ interval | weekend, data = act_imp_weekend, type = 'l')
+```
+
+From the look of it, this guy walks to work, or to a coffee shop each workday.
+
+
+
+
+
+
